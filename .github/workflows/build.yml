@@ -18,8 +18,17 @@ jobs:
         with:
           gradle-version: '8.14.3'
       - name: Build debug APK
-        run: gradle assembleDebug --no-daemon
+        run: |
+          # zip கோப்பாக upload செய்திருந்தால் பிரித்தெடுக்கும்
+          for z in *.zip; do [ -f "$z" ] && unzip -o -q "$z"; done || true
+          # settings.gradle எந்த folder-ல் இருந்தாலும் கண்டுபிடிக்கும்
+          F=$(find . -name settings.gradle -not -path './.git/*' | head -1)
+          if [ -z "$F" ]; then echo "settings.gradle கிடைக்கவில்லை"; ls -R | head -50; exit 1; fi
+          DIR=$(dirname "$F")
+          echo "Project folder: $DIR"
+          cd "$DIR"
+          gradle assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:
           name: karumbu-kanakku-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: '**/build/outputs/apk/debug/app-debug.apk'
