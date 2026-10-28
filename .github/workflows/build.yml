@@ -17,18 +17,76 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.14.3'
+      - name: Project அமைப்பை உருவாக்கு
+        run: |
+          # கோப்புகள் எந்த folder-ல் இருந்தாலும் (தட்டையாக upload செய்தாலும்) பெயரைக் கொண்டு கண்டுபிடித்து சரியான இடத்தில் வைக்கும்
+          for z in *.zip; do [ -f "$z" ] && unzip -o -q "$z"; done || true
+          P=proj
+          rm -rf $P
+          R=$P/app/src/main
+          mkdir -p $R/java/com/karumbu/kanakku $R/assets $R/res/values $R/res/xml $R/res/drawable-nodpi $R/res/mipmap-anydpi-v26
+          pick() { find . -name "$1" -not -path './.git/*' -not -path './proj/*' -not -path '*/build/*' | head -1; }
+          place() { f=$(pick "$1"); if [ -z "$f" ]; then echo "கிடைக்கவில்லை: $1"; exit 1; fi; cp "$f" "$2"; echo "$1 -> $2"; }
+          place AndroidManifest.xml $R/
+          place MainActivity.java $R/java/com/karumbu/kanakku/
+          place index.html $R/assets/
+          place file_paths.xml $R/res/xml/
+          place ic_fg.png $R/res/drawable-nodpi/
+          place ic_launcher.xml $R/res/mipmap-anydpi-v26/
+          place strings.xml $R/res/values/
+          place styles.xml $R/res/values/
+          cat > $P/settings.gradle <<'EOF_SETTINGS'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "KarumbuKanakku"
+          include ':app'
+          EOF_SETTINGS
+          cat > $P/build.gradle <<'EOF_ROOT'
+          plugins {
+              id 'com.android.application' version '8.7.3' apply false
+          }
+          EOF_ROOT
+          cat > $P/gradle.properties <<'EOF_PROPS'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=true
+          EOF_PROPS
+          cat > $P/app/build.gradle <<'EOF_APP'
+          plugins { id 'com.android.application' }
+
+          android {
+              namespace 'com.karumbu.kanakku'
+              compileSdk 35
+              defaultConfig {
+                  applicationId 'com.karumbu.kanakku'
+                  minSdk 29
+                  targetSdk 34
+                  versionCode 1
+                  versionName '1.0'
+              }
+              buildTypes {
+                  release { minifyEnabled false }
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+
+          dependencies {
+              implementation 'androidx.webkit:webkit:1.12.1'
+              implementation 'androidx.core:core:1.13.1'
+          }
+          EOF_APP
       - name: Build debug APK
         run: |
-          # zip கோப்பாக upload செய்திருந்தால் பிரித்தெடுக்கும்
-          for z in *.zip; do [ -f "$z" ] && unzip -o -q "$z"; done || true
-          # settings.gradle எந்த folder-ல் இருந்தாலும் கண்டுபிடிக்கும்
-          F=$(find . -name settings.gradle -not -path './.git/*' | head -1)
-          if [ -z "$F" ]; then echo "settings.gradle கிடைக்கவில்லை"; ls -R | head -50; exit 1; fi
-          DIR=$(dirname "$F")
-          echo "Project folder: $DIR"
-          cd "$DIR"
+          cd proj
           gradle assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:
           name: karumbu-kanakku-apk
-          path: '**/build/outputs/apk/debug/app-debug.apk'
+          path: proj/app/build/outputs/apk/debug/app-debug.apk
