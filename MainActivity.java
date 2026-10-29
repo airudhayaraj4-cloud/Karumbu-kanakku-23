@@ -9,6 +9,9 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.net.Uri;
+import android.print.PrintAttributes;
+import android.print.PrintDocumentAdapter;
+import android.print.PrintManager;
 import android.provider.DocumentsContract;
 import android.webkit.ValueCallback;
 import androidx.core.content.FileProvider;
@@ -56,6 +59,7 @@ public class MainActivity extends Activity {
         + "if(handle(a)){e.preventDefault();e.stopPropagation();}},true);})();";
 
     private WebView web;
+    private final java.util.ArrayList<WebView> printViews = new java.util.ArrayList<>();
     private ValueCallback<Uri[]> fileCb;
     private static final int REQ_FILE = 101;
     private static final int REQ_FOLDER = 102;
@@ -277,6 +281,29 @@ public class MainActivity extends Activity {
     }
 
     public class Bridge {
+        @JavascriptInterface
+        public void printImage(final String base64, final String title) {
+            runOnUiThread(() -> {
+                try {
+                    final WebView pw = new WebView(MainActivity.this);
+                    printViews.add(pw);
+                    pw.setWebViewClient(new WebViewClient() {
+                        @Override
+                        public void onPageFinished(WebView v, String url) {
+                            PrintManager pm = (PrintManager) getSystemService(PRINT_SERVICE);
+                            PrintDocumentAdapter ad = v.createPrintDocumentAdapter(title);
+                            pm.print(title, ad, new PrintAttributes.Builder().build());
+                        }
+                    });
+                    String html = "<html><head><style>@page{margin:6mm}body{margin:0}img{width:100%;height:auto}</style></head>"
+                            + "<body><img src=\"data:image/png;base64," + base64 + "\"/></body></html>";
+                    pw.loadDataWithBaseURL(null, html, "text/html", "utf-8", null);
+                } catch (Throwable e) {
+                    Toast.makeText(MainActivity.this, "அச்சு தொடங்க முடியவில்லை", Toast.LENGTH_LONG).show();
+                }
+            });
+        }
+
         @JavascriptInterface
         public void openUrl(final String url) {
             runOnUiThread(() -> {
