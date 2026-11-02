@@ -59,6 +59,9 @@ public class MainActivity extends Activity {
         + "if(handle(a)){e.preventDefault();e.stopPropagation();}},true);})();";
 
     private WebView web;
+    private String pendingText = null;
+    private String pendingJid = "";
+    private boolean pendingPaused = false;
     private final java.util.ArrayList<WebView> printViews = new java.util.ArrayList<>();
     private ValueCallback<Uri[]> fileCb;
     private static final int REQ_FILE = 101;
@@ -271,6 +274,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
+        if (pendingText != null) pendingPaused = true;
         web.onPause();
     }
 
@@ -278,6 +282,36 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         web.onResume();
+        if (pendingText != null && pendingPaused) {
+            final String t = pendingText;
+            final String j = pendingJid;
+            pendingText = null;
+            pendingPaused = false;
+            web.postDelayed(() -> sendWaText(t, j), 400);
+        }
+    }
+
+    private void sendWaText(String text, String jid) {
+        Toast.makeText(this, "உரையும் அனுப்பப்படுகிறது...", Toast.LENGTH_SHORT).show();
+        Intent i = new Intent(Intent.ACTION_SEND);
+        i.setType("text/plain");
+        i.putExtra(Intent.EXTRA_TEXT, text);
+        if (jid != null && !jid.isEmpty()) i.putExtra("jid", jid + "@s.whatsapp.net");
+        String[] pkgs = {"com.whatsapp", "com.whatsapp.w4b"};
+        for (String p : pkgs) {
+            try {
+                i.setPackage(p);
+                startActivity(i);
+                return;
+            } catch (Exception ignored) { }
+        }
+        i.setPackage(null);
+        i.removeExtra("jid");
+        try {
+            startActivity(Intent.createChooser(i, "உரையைப் பகிர"));
+        } catch (Exception ex) {
+            Toast.makeText(this, "பகிர முடியவில்லை: " + ex, Toast.LENGTH_LONG).show();
+        }
     }
 
     public class Bridge {
@@ -382,7 +416,9 @@ public class MainActivity extends Activity {
                     Intent i = new Intent(Intent.ACTION_SEND);
                     i.setType(fname.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/png");
                     i.putExtra(Intent.EXTRA_STREAM, uri);
-                    if (!caption.isEmpty()) i.putExtra(Intent.EXTRA_TEXT, caption);
+                    pendingText = caption.isEmpty() ? null : caption;
+                    pendingJid = jid;
+                    pendingPaused = false;
                     i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                     i.setClipData(android.content.ClipData.newRawUri("", uri));
                     if (wa) {
