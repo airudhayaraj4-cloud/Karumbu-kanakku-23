@@ -393,6 +393,67 @@ public class MainActivity extends Activity {
             }
         }
 
+        // பல படங்களை ஒரே நேரத்தில் WhatsApp (அல்லது பகிர்வு பட்டியல்) வழியாக அனுப்ப
+        @JavascriptInterface
+        public void shareImages(String json, String phone, boolean whatsapp) {
+            try {
+                org.json.JSONArray arr = new org.json.JSONArray(json);
+                File dir = new File(getCacheDir(), "shared");
+                dir.mkdirs();
+                final java.util.ArrayList<Uri> uris = new java.util.ArrayList<Uri>();
+                for (int k = 0; k < arr.length(); k++) {
+                    org.json.JSONObject o = arr.getJSONObject(k);
+                    byte[] data = Base64.decode(o.getString("b"), Base64.DEFAULT);
+                    String nm = o.optString("n", "part.png").replaceAll("[^A-Za-z0-9._-]", "_");
+                    File f = new File(dir, "p" + k + "_" + nm);
+                    try (FileOutputStream fo = new FileOutputStream(f)) { fo.write(data); }
+                    uris.add(FileProvider.getUriForFile(MainActivity.this,
+                            "com.karumbu.kanakku.fileprovider", f));
+                }
+                if (uris.isEmpty()) return;
+                String digits = phone == null ? "" : phone.replaceAll("\\D", "");
+                if (digits.length() == 10) digits = "91" + digits;
+                else if (digits.length() == 11 && digits.startsWith("0")) digits = "91" + digits.substring(1);
+                if (digits.length() < 11) digits = "";
+                final String jid = digits;
+                final boolean wa = whatsapp;
+                runOnUiThread(() -> {
+                    Intent i = new Intent(Intent.ACTION_SEND_MULTIPLE);
+                    i.setType("image/png");
+                    i.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris);
+                    pendingText = null;
+                    pendingJid = jid;
+                    pendingPaused = false;
+                    i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    android.content.ClipData cd = android.content.ClipData.newRawUri("", uris.get(0));
+                    for (int k = 1; k < uris.size(); k++) {
+                        cd.addItem(new android.content.ClipData.Item(uris.get(k)));
+                    }
+                    i.setClipData(cd);
+                    if (wa) {
+                        if (!jid.isEmpty()) i.putExtra("jid", jid + "@s.whatsapp.net");
+                        String[] pkgs = {"com.whatsapp", "com.whatsapp.w4b"};
+                        for (String p : pkgs) {
+                            try {
+                                i.setPackage(p);
+                                startActivity(i);
+                                return;
+                            } catch (Exception ignored) { }
+                        }
+                        i.setPackage(null);
+                        i.removeExtra("jid");
+                    }
+                    try {
+                        startActivity(Intent.createChooser(i, "படங்களைப் பகிர"));
+                    } catch (Exception ex) {
+                        Toast.makeText(MainActivity.this, "பகிர முடியவில்லை: " + ex, Toast.LENGTH_LONG).show();
+                    }
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "பகிர முடியவில்லை: " + e, Toast.LENGTH_LONG).show());
+            }
+        }
+
         // படத்தை WhatsApp (அல்லது பகிர்வு பட்டியல்) வழியாக நேரடியாக அனுப்ப
         @JavascriptInterface
         public void shareImage(String base64, String name, String phone, String text, boolean whatsapp) {
