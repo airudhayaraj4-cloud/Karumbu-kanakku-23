@@ -396,6 +396,15 @@ public class MainActivity extends Activity {
         // பல படங்களை ஒரே நேரத்தில் WhatsApp (அல்லது பகிர்வு பட்டியல்) வழியாக அனுப்ப
         @JavascriptInterface
         public void shareImages(String json, String phone, boolean whatsapp) {
+            doShareImages(json, phone, "", whatsapp);
+        }
+
+        @JavascriptInterface
+        public void shareImagesCap(String json, String phone, String text, boolean whatsapp) {
+            doShareImages(json, phone, text, whatsapp);
+        }
+
+        private void doShareImages(String json, String phone, String text, boolean whatsapp) {
             try {
                 org.json.JSONArray arr = new org.json.JSONArray(json);
                 File dir = new File(getCacheDir(), "shared");
@@ -421,6 +430,7 @@ public class MainActivity extends Activity {
                     Intent i = new Intent(Intent.ACTION_SEND_MULTIPLE);
                     i.setType("image/png");
                     i.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris);
+                    if (text != null && !text.isEmpty()) i.putExtra(Intent.EXTRA_TEXT, text);
                     pendingText = null;
                     pendingJid = jid;
                     pendingPaused = false;
